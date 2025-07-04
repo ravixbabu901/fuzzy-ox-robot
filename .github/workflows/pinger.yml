@@ -23,14 +23,18 @@ jobs:
       - name: ☁️ Install Wrangler
         run: npm install -g wrangler
 
-      - name: ✅ Execute D1 Query via File
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: 🚀 Fetch Links via Cloudflare API
         run: |
-          echo "--- Executing D1 Query from file ---"
-          # Using --file is more robust and avoids shell parsing issues
-          wrangler d1 execute gofile-links --file=./query.sql --json > links.json
+          echo "--- Fetching links directly from D1 HTTP API ---"
+          
+          # Use curl to call the D1 API, and 'jq' to format the output for the next step
+          curl -s -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/d1/database/${{ secrets.D1_DATABASE_ID }}/query" \
+            --header "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            --header "Content-Type: application/json" \
+            --data '{ "sql": "SELECT download_link FROM links;" }' \
+            | jq '.result[0].results' > links.json
+          
           echo "✅ Links fetched from D1 and saved to links.json"
 
       - name: Pinging Links
