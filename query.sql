@@ -1,2 +1,2 @@
 -- query.sql
-SELECT download_link FROM links;
+SELECT download_link FROM links
