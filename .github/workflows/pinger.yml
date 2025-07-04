@@ -1,0 +1,35 @@
+# .github/workflows/pinger.yml
+name: Ping D1 Links
+
+on:
+  schedule:
+    # Runs at 00:00 on every 5th day-of-month. Use https://crontab.guru to customize.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    # Allows you to run this workflow manually from the Actions tab
+
+jobs:
+  ping-links:
+    runs-on: ubuntu-latest
+    steps:
+      - name:  checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: ☁️ Install Wrangler
+        run: npm install -g wrangler
+
+      - name: Executing D1 Query
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          wrangler d1 execute gofile-links --command "SELECT download_link FROM links;" --json > links.json
+          echo "✅ Links fetched from D1 and saved to links.json"
+
+      - name: Pinging Links
+        run: node ping-script.js
