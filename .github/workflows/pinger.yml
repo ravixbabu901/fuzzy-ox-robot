@@ -23,14 +23,15 @@ jobs:
       - name: ☁️ Install Wrangler
         run: npm install -g wrangler
 
-      - name: 🔬 Final Diagnostic - List D1 Databases
+      - name: ✅ Execute D1 Query via File
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "--- Testing D1 List Permission ---"
-          # This command directly tests the token's ability to read D1 resources.
-          wrangler d1 list
+          echo "--- Executing D1 Query from file ---"
+          # Using --file is more robust and avoids shell parsing issues
+          wrangler d1 execute gofile-links --file=./query.sql --json > links.json
+          echo "✅ Links fetched from D1 and saved to links.json"
 
       - name: Pinging Links
         run: node ping-script.js
