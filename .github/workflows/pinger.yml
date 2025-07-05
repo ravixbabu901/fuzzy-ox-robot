@@ -4,7 +4,7 @@ name: Ping D1 Links
 on:
   schedule:
     # Runs at 00:00 on every 5th day-of-month. Use https://crontab.guru to customize.
-    - cron: '*/5 * * * *'
+    - cron: '15 12 * * *'
   workflow_dispatch:
     # Allows you to run this workflow manually from the Actions tab
 
@@ -19,9 +19,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: ☁️ Install Wrangler
-        run: npm install -g wrangler
 
       - name: 🚀 Fetch Links via Cloudflare API
         run: |
