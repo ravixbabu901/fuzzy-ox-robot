@@ -44,7 +44,7 @@ function main() {
     return;
   }
 
-  processInBatches(links, 100); // Process in batches of 100
+  processInBatches(links, 50); // Process in batches of 100
 }
 
 main();
