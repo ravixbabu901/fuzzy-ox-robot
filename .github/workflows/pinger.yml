@@ -3,8 +3,8 @@ name: Ping D1 Links
 
 on:
   schedule:
-    # Runs at 00:00 on every 5th day-of-month. Use https://crontab.guru to customize.
-    - cron: '0 */12 * * *'
+    # Runs at 06:00 on every day. Use https://crontab.guru to customize.
+    - cron: '0 6 * * *'
   workflow_dispatch:
     # Allows you to run this workflow manually from the Actions tab
 
