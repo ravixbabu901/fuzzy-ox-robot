@@ -3,8 +3,8 @@ name: Ping D1 Links
 
 on:
   schedule:
-    # Runs at every 8 hours, every day. Use https://crontab.guru to customize.
-    - cron: '0 */8 * * *'
+    # Runs at every 10:50 hours, every day. Use https://crontab.guru to customize.
+    - cron: '50 */10 * * *'
   workflow_dispatch:
     # Allows you to run this workflow manually from the Actions tab
 
