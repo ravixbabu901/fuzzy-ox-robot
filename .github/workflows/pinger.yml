@@ -25,11 +25,15 @@ jobs:
           echo "--- Fetching links directly from D1 HTTP API ---"
           
           # Use curl to call the D1 API, and 'jq' to format the output for the next step
+          #
+          # THE FIX: Added an empty "params": [] array to the --data payload,
+          # as this is required by the D1 HTTP API.
+          #
           curl -s -X POST \
             "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/d1/database/${{ secrets.D1_DATABASE_ID }}/query" \
             --header "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
             --header "Content-Type: application/json" \
-            --data '{ "sql": "SELECT download_link FROM links;" }' \
+            --data '{ "sql": "SELECT download_link FROM links;", "params": [] }' \
             | jq '.result[0].results' > links.json
           
           echo "✅ Links fetched from D1 and saved to links.json"
