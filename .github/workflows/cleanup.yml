@@ -16,8 +16,8 @@ jobs:
       
     steps:
       - name: Delete workflow runs
-        # 🚨 FIX IS HERE: Change to use the stable tag 🚨
-        uses: JuvenileQ/delete-workflow-runs@v1 
+        # 🚨 FIX IS HERE: Pinning to the 'main' branch 🚨
+        uses: JuvenileQ/delete-workflow-runs@main 
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
