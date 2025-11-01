@@ -2,9 +2,10 @@
 import fs from 'fs';
 
 // --- Configuration ---
-// Delay introduced between each request for the sequential retry passes (Pass #5 and later)
+// Delay introduced between each request for the sequential retry passes
 const RETRY_DELAY_MS = 25; 
-const SLOW_PASS_START_COUNT = 5; // New: Slow sequential mode starts at Pass #5
+// Slow sequential mode starts at Pass #5
+const SLOW_PASS_START_COUNT = 5; 
 
 // Helper function to introduce a pause
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -34,7 +35,7 @@ async function ping(linkObj) {
 async function pingPass(links, batchSize, passCount) {
   const failedLinks = [];
   
-  // Logic updated: Passes 1-4 are fast, Pass 5+ are slow
+  // Logic: Passes 1-4 are fast, Pass 5+ are slow
   const isFastPass = passCount < SLOW_PASS_START_COUNT; 
   
   const mode = isFastPass ? 'FAST CONCURRENT' : `SLOW SEQUENTIAL (+${RETRY_DELAY_MS}ms delay)`;
@@ -80,7 +81,7 @@ async function pingPass(links, batchSize, passCount) {
 // Main function implements the retry loop
 async function main() {
   const INITIAL_LINKS_FILE = 'links.json';
-  const BATCH_SIZE = 100; // Used for the first concurrent pass's chunk size
+  const BATCH_SIZE = 10; // Used for the first concurrent pass's chunk size
   
   if (!fs.existsSync(INITIAL_LINKS_FILE)) {
     console.error(`Error: ${INITIAL_LINKS_FILE} file not found!`);
@@ -101,6 +102,9 @@ async function main() {
   // The retry loop continues as long as there are links to process
   while (currentLinks.length > 0) {
     passCount++;
+    // FIX: Define isFastPass here so it is accessible for the break condition check below.
+    const isFastPass = passCount < SLOW_PASS_START_COUNT; 
+
     console.log('\n===================================================================');
     console.log(`Starting Pinging Pass #${passCount} with ${currentLinks.length} links...`);
     console.log('===================================================================');
@@ -122,9 +126,9 @@ async function main() {
       break; 
     }
     
-    // Logic: If we are already in the slow pass mode (pass > 4) and failures don't change, we stop.
+    // Logic: If we are already in the slow pass mode (pass 5+) and failures don't change, we stop.
     if (!isFastPass && failedLinks.length === currentLinks.length) {
-      console.warn('⚠️ WARNING: The number of failed links did not decrease after multiple slow passes. Exiting retry loop to prevent infinite loop.');
+      console.warn('⚠️ WARNING: The number of failed links did not decrease after the slow pass. Exiting retry loop to prevent infinite loop.');
       break;
     }
 
