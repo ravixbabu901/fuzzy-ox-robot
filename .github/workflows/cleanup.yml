@@ -11,16 +11,20 @@ jobs:
   delete-runs:
     runs-on: ubuntu-latest
     permissions:
-      actions: write
+      actions: write # Required to delete runs
       contents: read
       
     steps:
       - name: Delete workflow runs
-        # 🚨 FIX IS HERE: Pinning to the 'main' branch 🚨
         uses: JuvenileQ/delete-workflow-runs@main 
         with:
+          # REQUIRED INPUTS
           token: ${{ github.token }}
           repository: ${{ github.repository }}
+          
+          # DELETION CONFIGURATION
           retain_days: 30
           keep_minimum_runs: 6
+          
+          # 🛑 THIS MUST BE EXPLICITLY SET TO FALSE FOR DELETION TO OCCUR 🛑
           dry_run: false
