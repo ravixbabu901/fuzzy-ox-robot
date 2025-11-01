@@ -1,30 +1,42 @@
-name: Delete old workflow runs
+name: Delete Old Workflow Runs
 
 on:
-  # Runs every Sunday at midnight (00:00 UTC)
+  # Schedule to run once every night at 00:00 UTC (12 AM)
   schedule:
-    - cron: '0 0 * * 0' 
-  # Allows manual triggering from the Actions tab
+    - cron: '0 0 * * *'
+  # Allows you to manually trigger the cleanup from the GitHub Actions tab
   workflow_dispatch:
 
 jobs:
-  delete-runs:
+  delete_runs:
     runs-on: ubuntu-latest
+    
+    # 🛑 CRITICAL: This permission is mandatory for deleting runs
     permissions:
-      actions: write # Required to delete runs
-      contents: read
-      
+      actions: write
+      contents: read # Also needed for the checkout step
+
     steps:
-      - name: Delete workflow runs
-        uses: JuvenileQ/delete-workflow-runs@main 
+      - name: Checkout Repository (Optional but recommended)
+        uses: actions/checkout@v4
+
+      - name: Delete Old Workflow Runs
+        uses: Mattra/delete-workflow-runs@v4
         with:
-          # REQUIRED INPUTS
+          # Your GitHub Token is automatically available
           token: ${{ github.token }}
-          repository: ${{ github.repository }}
           
-          # DELETION CONFIGURATION
-          retain_days: 90
-          keep_minimum_runs: 6
+          # Runs older than this many days will be deleted
+          # (e.g., 30 days old runs will be deleted)
+          retain_days: 100
           
-          # 🛑 THIS MUST BE EXPLICITLY SET TO FALSE FOR DELETION TO OCCUR 🛑
+          # Always keep at least this many of the newest runs for each workflow
+          keep_minimum_runs: 5 
+          
+          # Optional: Specify a workflow name or filename to target.
+          # Leave this out to target ALL workflows.
+          # workflow: 'Ping D1 Links'
+          
+          # Optional: Run in dry-run mode first to confirm it works
+          # Set to 'false' to perform the actual deletion!
           dry_run: false
