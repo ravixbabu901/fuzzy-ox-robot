@@ -3,7 +3,7 @@ name: Ping D1 Links
 
 on:
   schedule:
-    # Runs at every 10:50 hours, every day. Use https://crontab.guru to customize.
+    # Runs at every 10:50 hours, every day.
     - cron: '50 */10 * * *'
   workflow_dispatch:
     # Allows you to run this workflow manually from the Actions tab
@@ -20,23 +20,33 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 🚀 Fetch Links via Cloudflare API
+      - name: 🚀 Fetch Links via Cloudflare API (with Debugging)
         run: |
           echo "--- Fetching links directly from D1 HTTP API ---"
           
-          # Use curl to call the D1 API, and 'jq' to format the output for the next step
-          #
-          # THE FIX: Added an empty "params": [] array to the --data payload,
-          # as this is required by the D1 HTTP API.
-          #
+          # 1. Run curl and save the RAW response to 'd1_response.json'
+          #    This stops jq from hiding any API errors.
           curl -s -X POST \
             "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/d1/database/${{ secrets.D1_DATABASE_ID }}/query" \
             --header "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
             --header "Content-Type: application/json" \
-            --data '{ "sql": "SELECT download_link FROM links;", "params": [] }' \
-            | jq '.result[0].results' > links.json
+            --data '{ "sql": "SELECT download_link FROM links;", "params": [] }' > d1_response.json
           
-          echo "✅ Links fetched from D1 and saved to links.json"
+          echo "--- DEBUG: RAW RESPONSE from Cloudflare API ---"
+          # This is the most important step: print what Cloudflare actually sent.
+          cat d1_response.json
+          echo "------------------------------------------------"
+          
+          # 2. Try to process the response with jq
+          echo "--- Processing response with jq... ---"
+          jq '.result[0].results' d1_response.json > links.json
+          
+          echo "✅ Raw response processed and saved to links.json"
+
+          echo "--- DEBUG: FINAL CONTENT of links.json (what script will read) ---"
+          # This shows what the Node.js script will get.
+          cat links.json
+          echo "------------------------------------------------------------------"
 
       - name: Pinging Links
         run: node ping-script.js
