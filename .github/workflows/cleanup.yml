@@ -21,22 +21,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Delete Old Workflow Runs
-        uses: Mattra/delete-workflow-runs@v4
+        # --- CORRECTED LINE BELOW ---
+        uses: Mattraks/delete-workflow-runs@v2 
+        # Using v2 as it's the latest verified tag in the Marketplace
         with:
           # Your GitHub Token is automatically available
           token: ${{ github.token }}
           
-          # Runs older than this many days will be deleted
-          # (e.g., 30 days old runs will be deleted)
-          retain_days: 100
+          # Runs older than this many days will be deleted (e.g., 30 days old runs)
+          retain_days: 30
           
           # Always keep at least this many of the newest runs for each workflow
           keep_minimum_runs: 5 
           
-          # Optional: Specify a workflow name or filename to target.
-          # Leave this out to target ALL workflows.
-          # workflow: 'Ping D1 Links'
-          
-          # Optional: Run in dry-run mode first to confirm it works
-          # Set to 'false' to perform the actual deletion!
+          # Set to 'true' to only log the runs that would be deleted.
+          # Change to 'false' to perform the actual deletion!
           dry_run: false
