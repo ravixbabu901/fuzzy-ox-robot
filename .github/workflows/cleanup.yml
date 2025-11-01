@@ -23,7 +23,7 @@ jobs:
           repository: ${{ github.repository }}
           
           # DELETION CONFIGURATION
-          retain_days: 30
+          retain_days: 90
           keep_minimum_runs: 6
           
           # 🛑 THIS MUST BE EXPLICITLY SET TO FALSE FOR DELETION TO OCCUR 🛑
