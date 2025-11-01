@@ -1,7 +1,7 @@
 name: Delete old workflow runs
 
 on:
-  # This sets the schedule to run every Sunday at midnight (00:00 UTC).
+  # Runs every Sunday at midnight (00:00 UTC)
   schedule:
     - cron: '0 0 * * 0' 
   # Allows manual triggering from the Actions tab
@@ -11,20 +11,19 @@ jobs:
   delete-runs:
     runs-on: ubuntu-latest
     permissions:
-      # !! REQUIRED to delete runs !!
+      # Required for listing and deleting workflow runs
       actions: write
       contents: read
       
     steps:
       - name: Delete workflow runs
-        # You can use any reliable cleanup action from the Marketplace
+        # Using the specified action
         uses: JuvenileQ/delete-workflow-runs@main 
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
-          # Example: Deletes runs older than 30 days
+          # Recommended: Use the same retention settings from your dry run
           retain_days: 30
-          # Example: Ensures at least the last 6 runs are kept
           keep_minimum_runs: 6
-          # IMPORTANT: Change 'true' to 'false' to enable actual deletion.
-          dry_run: true
+          # 🚨 THIS IS THE CHANGE: Set to 'false' to perform actual deletion 🚨
+          dry_run: false
