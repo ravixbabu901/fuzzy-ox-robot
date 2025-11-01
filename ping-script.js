@@ -2,8 +2,9 @@
 import fs from 'fs';
 
 // --- Configuration ---
-// Delay introduced between each request for the sequential retry passes (Pass #2 and later)
-const RETRY_DELAY_MS = 500; 
+// Delay introduced between each request for the sequential retry passes (Pass #5 and later)
+const RETRY_DELAY_MS = 25; 
+const SLOW_PASS_START_COUNT = 5; // New: Slow sequential mode starts at Pass #5
 
 // Helper function to introduce a pause
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -33,12 +34,15 @@ async function ping(linkObj) {
 async function pingPass(links, batchSize, passCount) {
   const failedLinks = [];
   
-  const mode = passCount === 1 ? 'FAST CONCURRENT' : `SLOW SEQUENTIAL (+${RETRY_DELAY_MS}ms delay)`;
+  // Logic updated: Passes 1-4 are fast, Pass 5+ are slow
+  const isFastPass = passCount < SLOW_PASS_START_COUNT; 
+  
+  const mode = isFastPass ? 'FAST CONCURRENT' : `SLOW SEQUENTIAL (+${RETRY_DELAY_MS}ms delay)`;
   console.log(`Pinging ${links.length} links in ${mode} mode...`);
 
-  if (passCount === 1) {
+  if (isFastPass) {
     // ------------------------------------
-    // MODE 1: FAST CONCURRENT (Initial Run)
+    // MODE 1: FAST CONCURRENT (Pass 1 through 4)
     // ------------------------------------
     // Iterate in batches for manageable Promise.all sizes
     for (let i = 0; i < links.length; i += batchSize) {
@@ -58,7 +62,7 @@ async function pingPass(links, batchSize, passCount) {
 
   } else {
     // ------------------------------------
-    // MODE 2: SLOW SEQUENTIAL (Retry Run)
+    // MODE 2: SLOW SEQUENTIAL (Pass 5+)
     // ------------------------------------
     // Process links one-by-one with a delay to bypass rate limits
     for (const linkObj of links) {
@@ -76,7 +80,7 @@ async function pingPass(links, batchSize, passCount) {
 // Main function implements the retry loop
 async function main() {
   const INITIAL_LINKS_FILE = 'links.json';
-  const BATCH_SIZE = 50; // Used for the first concurrent pass's chunk size
+  const BATCH_SIZE = 100; // Used for the first concurrent pass's chunk size
   
   if (!fs.existsSync(INITIAL_LINKS_FILE)) {
     console.error(`Error: ${INITIAL_LINKS_FILE} file not found!`);
@@ -101,7 +105,7 @@ async function main() {
     console.log(`Starting Pinging Pass #${passCount} with ${currentLinks.length} links...`);
     console.log('===================================================================');
 
-    // Run the ping pass (fast on pass 1, slow on subsequent passes)
+    // Run the ping pass (fast on pass 1-4, slow on pass 5+)
     const failedLinks = await pingPass(currentLinks, BATCH_SIZE, passCount);
 
     const succeededInPass = currentLinks.length - failedLinks.length;
@@ -118,9 +122,9 @@ async function main() {
       break; 
     }
     
-    // If the number of failures didn't decrease after the slow pass, they are likely dead/unresolvable
-    if (failedLinks.length === currentLinks.length && passCount > 2) {
-      console.warn('⚠️ WARNING: The number of failed links did not decrease after multiple passes. Exiting retry loop.');
+    // Logic: If we are already in the slow pass mode (pass > 4) and failures don't change, we stop.
+    if (!isFastPass && failedLinks.length === currentLinks.length) {
+      console.warn('⚠️ WARNING: The number of failed links did not decrease after multiple slow passes. Exiting retry loop to prevent infinite loop.');
       break;
     }
 
