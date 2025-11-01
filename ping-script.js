@@ -81,7 +81,7 @@ async function pingPass(links, batchSize, passCount) {
 // Main function implements the retry loop
 async function main() {
   const INITIAL_LINKS_FILE = 'links.json';
-  const BATCH_SIZE = 20; // Used for the first concurrent pass's chunk size
+  const BATCH_SIZE = 15; // Used for the first concurrent pass's chunk size
   
   if (!fs.existsSync(INITIAL_LINKS_FILE)) {
     console.error(`Error: ${INITIAL_LINKS_FILE} file not found!`);
