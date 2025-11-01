@@ -15,38 +15,27 @@ jobs:
       - name:  checkout code
         uses: actions/checkout@v4
 
-      - name: 🟢 Setup Node.js
+      - name: 🟢 Setup Node.js and jq
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: 🚀 Fetch Links via Cloudflare API (with Debugging)
+      - name: 🔗 Fetch Links from D1
         run: |
           echo "--- Fetching links directly from D1 HTTP API ---"
-          
-          # 1. Run curl and save the RAW response to 'd1_response.json'
-          #    This stops jq from hiding any API errors.
+          # Fetch links using curl and pipe directly to jq for parsing
           curl -s -X POST \
             "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/d1/database/${{ secrets.D1_DATABASE_ID }}/query" \
             --header "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
             --header "Content-Type: application/json" \
-            --data '{ "sql": "SELECT download_link FROM links;", "params": [] }' > d1_response.json
+            --data '{ "sql": "SELECT download_link FROM links;", "params": [] }' \
+            | jq '.result[0].results' > links.json
           
-          echo "--- DEBUG: RAW RESPONSE from Cloudflare API ---"
-          # This is the most important step: print what Cloudflare actually sent.
-          cat d1_response.json
-          echo "------------------------------------------------"
+          echo "✅ Links fetched from D1 and saved to links.json"
           
-          # 2. Try to process the response with jq
-          echo "--- Processing response with jq... ---"
-          jq '.result[0].results' d1_response.json > links.json
-          
-          echo "✅ Raw response processed and saved to links.json"
-
-          echo "--- DEBUG: FINAL CONTENT of links.json (what script will read) ---"
-          # This shows what the Node.js script will get.
-          cat links.json
-          echo "------------------------------------------------------------------"
-
-      - name: Pinging Links
+      - name: 🚀 Pinging Links (with Smart Backoff)
         run: node ping-script.js
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
