@@ -11,19 +11,19 @@ jobs:
   delete-runs:
     runs-on: ubuntu-latest
     permissions:
-      # Required for listing and deleting workflow runs
+      # !! CRITICAL: This grants the token the authority to delete workflow runs !!
       actions: write
       contents: read
       
     steps:
       - name: Delete workflow runs
-        # Using the specified action
-        uses: JuvenileQ/delete-workflow-runs@main 
+        # We will pin the action to a specific SHA for security and reliability
+        # This is a best practice instead of using @main
+        uses: JuvenileQ/delete-workflow-runs@591e1cc1534062f6b8c8d8c3684a0d8e87d89647 
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
-          # Recommended: Use the same retention settings from your dry run
           retain_days: 30
           keep_minimum_runs: 6
-          # 🚨 THIS IS THE CHANGE: Set to 'false' to perform actual deletion 🚨
+          # Should now be set to false for actual deletion
           dry_run: false
