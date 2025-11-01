@@ -3,7 +3,7 @@ name: Delete Old Workflow Runs
 on:
   # Schedule to run once every night at 00:00 UTC (12 AM)
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 0 * * 1'
   # Allows you to manually trigger the cleanup from the GitHub Actions tab
   workflow_dispatch:
 
@@ -29,7 +29,7 @@ jobs:
           token: ${{ github.token }}
           
           # Runs older than this many days will be deleted (e.g., 30 days old runs)
-          retain_days: 30
+          retain_days: 5
           
           # Always keep at least this many of the newest runs for each workflow
           keep_minimum_runs: 5 
