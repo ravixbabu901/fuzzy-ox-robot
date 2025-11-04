@@ -4,30 +4,54 @@ import fs from 'fs';
 // --- Configuration ---
 const MIN_RANDOM_BATCH = 5;      // Minimum for random batch size
 const MAX_RANDOM_BATCH = 15;     // Maximum for random batch size
+const MAX_PING_ATTEMPTS = 3;     // Max attempts for a single link check
+const RETRY_DELAY_MS = 10;      // Delay between attempts for a single link check
 
-// Helper function to get a random batch size between MIN_RANDOM_BATCH and MAX_RANDOM_BATCH
+// Helper function to get a random batch size
 function getRandomBatchSize() {
   return Math.floor(Math.random() * (MAX_RANDOM_BATCH - MIN_RANDOM_BATCH + 1)) + MIN_RANDOM_BATCH;
 }
 
-// Helper function to perform the ping. Returns the link object on failure, or null on success.
+// Helper function to introduce a pause
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper function to perform the ping with built-in retry logic
 async function ping(linkObj) {
   const url = linkObj.download_link;
-  try {
-    // We use HEAD requests as they are the fastest way to check link availability.
-    const response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
-    
-    // Check if the request was unsuccessful (4xx, 5xx, or network error)
-    if (!response.ok) {
-      console.warn(`[FAIL] Link: ${url} - Status: ${response.status}.`);
-      return linkObj; 
+
+  for (let attempt = 1; attempt <= MAX_PING_ATTEMPTS; attempt++) {
+    try {
+      // Use HEAD request for speed
+      const response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+      
+      if (response.ok) {
+        // SUCCESS: Link passed on this attempt (1, 2, or 3)
+        if (attempt > 1) {
+          console.log(`[RETRY SUCCESS] Link: ${url} succeeded on attempt ${attempt}.`);
+        }
+        return null; // Return null on success
+      }
+      
+      // FAILURE (4xx, 5xx): Prepare for retry
+      console.warn(`[FAIL ATTEMPT ${attempt}] Link: ${url} - Status: ${response.status}.`);
+
+    } catch (error) {
+      // NETWORK ERROR: Prepare for retry
+      console.error(`[ERROR ATTEMPT ${attempt}] Link: ${url} - Network Error: ${error.message}.`);
     }
-    return null; 
-  } catch (error) {
-    // Catch network errors (e.g., DNS resolution, timeout, connection reset)
-    console.error(`[ERROR] Link: ${url} - Network Error: ${error.message}.`);
-    return linkObj; 
+
+    // Check if this was the last allowed attempt
+    if (attempt === MAX_PING_ATTEMPTS) {
+      console.error(`[FINAL FAIL] Link: ${url} failed after ${MAX_PING_ATTEMPTS} attempts.`);
+      break; // Exit the loop and return failure
+    }
+    
+    // Wait a brief moment before the next retry
+    await sleep(RETRY_DELAY_MS);
   }
+
+  // Return the link object only if all attempts failed
+  return linkObj; 
 }
 
 // Function for a general concurrent pass
@@ -38,7 +62,8 @@ async function concurrentPingPass(links, batchSize) {
 
   for (let i = 0; i < links.length; i += batchSize) {
       const chunk = links.slice(i, i + batchSize);
-      const promises = chunk.map(linkObj => ping(linkObj));
+      // NOTE: ping is now responsible for internal retries
+      const promises = chunk.map(linkObj => ping(linkObj)); 
       const results = await Promise.all(promises);
       
       results.forEach(failedLink => {
@@ -112,7 +137,7 @@ async function main() {
     // Save unresolvable links
     const unresolvableFile = 'unresolvable_links.json';
     fs.writeFileSync(unresolvableFile, JSON.stringify(currentLinks, null, 2), 'utf8');
-    console.log(`❌ **${currentLinks.length} links could not be successfully pinged after ${passCount} passes.**`);
+    console.log(`❌ **${currentLinks.length} links could not be successfully pinged after ${passCount} passes and internal retries.**`);
     console.log(`These links have been saved to **${unresolvableFile}** for manual inspection.`);
   } else {
     console.log(`✅ All ${initialLinkCount} links successfully pinged after ${passCount} passes.`);
