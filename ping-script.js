@@ -2,8 +2,8 @@
 import fs from 'fs';
 
 // --- Configuration ---
-const MIN_RANDOM_BATCH = 100;      // Minimum for random batch size
-const MAX_RANDOM_BATCH = 150;     // Maximum for random batch size
+const MIN_RANDOM_BATCH = 8;      // Minimum for random batch size
+const MAX_RANDOM_BATCH = 12;     // Maximum for random batch size
 const MAX_PING_ATTEMPTS = 3;     // Max attempts for a single link check
 const RETRY_DELAY_MS = 100;      // Delay between attempts for a single link check
 
@@ -25,23 +25,22 @@ async function ping(linkObj) {
       const response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
       
       if (response.ok) {
-        // SUCCESS: Link passed on this attempt (1, 2, or 3)
-        if (attempt > 1) {
-          console.log(`[RETRY SUCCESS] Link: ${url} succeeded on attempt ${attempt}.`);
-        }
-        return null; // Return null on success
+        // SUCCESS: Link passed on this attempt (1, 2, or 3). 
+        // We return null and are completely SILENT on success, as requested.
+        return null; 
       }
       
-      // FAILURE (4xx, 5xx): Prepare for retry
-      console.warn(`[FAIL ATTEMPT ${attempt}] Link: ${url} - Status: ${response.status}.`);
+      // FAILURE (4xx, 5xx): We will only log this if it's the final failure.
+      // console.warn(`[FAIL ATTEMPT ${attempt}] Link: ${url} - Status: ${response.status}.`);
 
     } catch (error) {
-      // NETWORK ERROR: Prepare for retry
-      console.error(`[ERROR ATTEMPT ${attempt}] Link: ${url} - Network Error: ${error.message}.`);
+      // NETWORK ERROR: We will only log this if it's the final failure.
+      // console.error(`[ERROR ATTEMPT ${attempt}] Link: ${url} - Network Error: ${error.message}.`);
     }
 
     // Check if this was the last allowed attempt
     if (attempt === MAX_PING_ATTEMPTS) {
+      // FINAL FAILURE: Log the URL and the reason it failed after all attempts
       console.error(`[FINAL FAIL] Link: ${url} failed after ${MAX_PING_ATTEMPTS} attempts.`);
       break; // Exit the loop and return failure
     }
@@ -62,7 +61,7 @@ async function concurrentPingPass(links, batchSize) {
 
   for (let i = 0; i < links.length; i += batchSize) {
       const chunk = links.slice(i, i + batchSize);
-      // NOTE: ping is now responsible for internal retries
+      // ping is responsible for internal retries and silence on success
       const promises = chunk.map(linkObj => ping(linkObj)); 
       const results = await Promise.all(promises);
       
