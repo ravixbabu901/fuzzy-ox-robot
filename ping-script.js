@@ -2,10 +2,10 @@
 import fs from 'fs';
 
 // --- Configuration ---
-const MIN_RANDOM_BATCH = 5;      // Minimum for random batch size
+const MIN_RANDOM_BATCH = 10;      // Minimum for random batch size
 const MAX_RANDOM_BATCH = 15;     // Maximum for random batch size
 const MAX_PING_ATTEMPTS = 3;     // Max attempts for a single link check
-const RETRY_DELAY_MS = 10;      // Delay between attempts for a single link check
+const RETRY_DELAY_MS = 100;      // Delay between attempts for a single link check
 
 // Helper function to get a random batch size
 function getRandomBatchSize() {
