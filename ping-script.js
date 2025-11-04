@@ -2,11 +2,13 @@
 import fs from 'fs';
 
 // --- Configuration ---
-const BATCH_SIZE = 10;          // Optimal concurrent batch size found by user
-const RETRY_DELAY_MS = 100;     // Reliable delay for the slow sequential retry pass
+const MIN_RANDOM_BATCH = 5;      // Minimum for random batch size
+const MAX_RANDOM_BATCH = 15;     // Maximum for random batch size
 
-// Helper function to introduce a pause
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// Helper function to get a random batch size between MIN_RANDOM_BATCH and MAX_RANDOM_BATCH
+function getRandomBatchSize() {
+  return Math.floor(Math.random() * (MAX_RANDOM_BATCH - MIN_RANDOM_BATCH + 1)) + MIN_RANDOM_BATCH;
+}
 
 // Helper function to perform the ping. Returns the link object on failure, or null on success.
 async function ping(linkObj) {
@@ -28,14 +30,14 @@ async function ping(linkObj) {
   }
 }
 
-// Function for the fast, concurrent pass (Pass #1)
-async function fastConcurrentPass(links) {
+// Function for a general concurrent pass
+async function concurrentPingPass(links, batchSize) {
   const failedLinks = [];
   
-  console.log(`Pinging ${links.length} links using FAST CONCURRENT mode (Batch Size ${BATCH_SIZE})...`);
+  console.log(`Pinging ${links.length} links using CONCURRENT mode (Batch Size ${batchSize})...`);
 
-  for (let i = 0; i < links.length; i += BATCH_SIZE) {
-      const chunk = links.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < links.length; i += batchSize) {
+      const chunk = links.slice(i, i + batchSize);
       const promises = chunk.map(linkObj => ping(linkObj));
       const results = await Promise.all(promises);
       
@@ -48,23 +50,7 @@ async function fastConcurrentPass(links) {
   return failedLinks;
 }
 
-// Function for the slow, sequential pass (Pass #2)
-async function slowSequentialPass(links) {
-  const failedLinks = [];
-  
-  console.log(`Pinging ${links.length} links using SLOW SEQUENTIAL mode (+${RETRY_DELAY_MS}ms delay)...`);
-
-  for (const linkObj of links) {
-      const failedLink = await ping(linkObj);
-      if (failedLink) {
-          failedLinks.push(failedLink);
-      }
-      await sleep(RETRY_DELAY_MS); 
-  }
-  return failedLinks;
-}
-
-// Main function implements the two-pass check
+// Main function implements the three-pass check
 async function main() {
   const INITIAL_LINKS_FILE = 'links.json';
   
@@ -74,63 +60,62 @@ async function main() {
   }
 
   const fileContent = fs.readFileSync(INITIAL_LINKS_FILE, 'utf8');
-  let allLinks = JSON.parse(fileContent);
+  let currentLinks = JSON.parse(fileContent);
 
-  if (!Array.isArray(allLinks) || allLinks.length === 0) {
+  if (!Array.isArray(currentLinks) || currentLinks.length === 0) {
     console.log('No links found in the database or JSON content is invalid. Exiting.');
     return;
   }
 
-  const initialLinkCount = allLinks.length;
+  const initialLinkCount = currentLinks.length;
   let totalSucceeded = 0;
+  let passCount = 0;
   
-  // --- PASS #1: FAST CONCURRENT CHECK ---
-  console.log('\n===================================================================');
-  console.log(`STARTING PASS #1 (Fast Check) with ${initialLinkCount} links...`);
-  console.log('===================================================================');
+  // Define the pass configurations: [batchSize, description]
+  const passConfigs = [
+    [getRandomBatchSize(), 'RANDOM BATCH (Pass 1)'],
+    [getRandomBatchSize(), 'RANDOM BATCH (Pass 2)'],
+    [1, 'SEQUENTIAL BATCH (Pass 3)'], // Batch size of 1 forces sequential execution
+  ];
+  
+  // --- Start Retry Loop ---
+  for (const [batchSize, description] of passConfigs) {
+    passCount++;
+    if (currentLinks.length === 0) {
+        break; // Early exit if previous pass succeeded
+    }
+    
+    console.log('\n===================================================================');
+    console.log(`STARTING PASS #${passCount}: ${description} with ${currentLinks.length} links...`);
+    console.log('===================================================================');
 
-  let failedLinks = await fastConcurrentPass(allLinks);
+    // Run the concurrent pass with the configured batch size
+    let failedLinks = await concurrentPingPass(currentLinks, batchSize);
 
-  let succeededInPass1 = allLinks.length - failedLinks.length;
-  totalSucceeded += succeededInPass1;
-  
-  console.log(`\n--- Pass #1 Summary ---`);
-  console.log(`✅ Succeeded in this pass: ${succeededInPass1} links`);
-  console.log(`❌ Still Failing: ${failedLinks.length} links`);
-  
-  // --- Check for Early Exit ---
-  if (failedLinks.length === 0) {
-    console.log('\n--- PINGING COMPLETE ---');
-    console.log(`✅ All ${initialLinkCount} links successfully pinged in a single pass.`);
-    return; 
+    let succeededInPass = currentLinks.length - failedLinks.length;
+    totalSucceeded += succeededInPass;
+    
+    // --- Pass Summary ---
+    console.log(`\n--- Pass #${passCount} Summary ---`);
+    console.log(`Batch Size Used: ${batchSize}`);
+    console.log(`✅ Succeeded in this pass: ${succeededInPass} links`);
+    console.log(`❌ Still Failing: ${failedLinks.length} links`);
+    console.log(`⏳ Total Succeeded So Far: ${totalSucceeded} links`);
+    
+    // Set the failed links as the input for the next pass
+    currentLinks = failedLinks;
   }
-  
-  // --- PASS #2: SLOW SEQUENTIAL RETRY (Only if Pass #1 failed) ---
-  console.log('\n===================================================================');
-  console.log(`STARTING PASS #2 (Slow Retry) with ${failedLinks.length} remaining links...`);
-  console.log('===================================================================');
-  
-  const linksToRetry = failedLinks.length;
-  const finalFailedLinks = await slowSequentialPass(failedLinks);
-  
-  const succeededInPass2 = linksToRetry - finalFailedLinks.length;
-  totalSucceeded += succeededInPass2;
-  
-  // --- Pass Summary ---
-  console.log(`\n--- Pass #2 Summary ---`);
-  console.log(`✅ Succeeded in this retry pass: ${succeededInPass2} links`);
-  console.log(`❌ Still Failing: ${finalFailedLinks.length} links`);
   
   // --- Final Output ---
   console.log('\n--- PINGING COMPLETE ---');
-  if (finalFailedLinks.length > 0) {
+  if (currentLinks.length > 0) {
     // Save unresolvable links
     const unresolvableFile = 'unresolvable_links.json';
-    fs.writeFileSync(unresolvableFile, JSON.stringify(finalFailedLinks, null, 2), 'utf8');
-    console.log(`❌ **${finalFailedLinks.length} links could not be successfully pinged after 2 passes.**`);
+    fs.writeFileSync(unresolvableFile, JSON.stringify(currentLinks, null, 2), 'utf8');
+    console.log(`❌ **${currentLinks.length} links could not be successfully pinged after ${passCount} passes.**`);
     console.log(`These links have been saved to **${unresolvableFile}** for manual inspection.`);
   } else {
-    console.log(`✅ All ${initialLinkCount} links successfully pinged after 2 passes.`);
+    console.log(`✅ All ${initialLinkCount} links successfully pinged after ${passCount} passes.`);
   }
 }
 
