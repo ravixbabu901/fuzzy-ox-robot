@@ -4,7 +4,7 @@ name: Ping D1 Links
 on:
   schedule:
     # Runs at every 10:50 hours, every day.
-    - cron: '50 */10 * * *'
+    - cron: '0 */10 * * *'
   workflow_dispatch:
     # Allows you to run this workflow manually from the Actions tab
 
