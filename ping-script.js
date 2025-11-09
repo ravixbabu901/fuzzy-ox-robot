@@ -2,10 +2,10 @@
 import fs from 'fs';
 
 // --- Configuration ---
-const MIN_RANDOM_BATCH = 8;      // Minimum for random batch size
-const MAX_RANDOM_BATCH = 12;     // Maximum for random batch size
+const MIN_RANDOM_BATCH = 5;      // Minimum for random batch size
+const MAX_RANDOM_BATCH = 15;     // Maximum for random batch size
 const MAX_PING_ATTEMPTS = 3;     // Max attempts for a single link check
-const RETRY_DELAY_MS = 100;      // Delay between attempts for a single link check
+const RETRY_DELAY_MS = 100;      // Delay between attempts for a single link check (necessary pause for micro-retry)
 
 // Helper function to get a random batch size
 function getRandomBatchSize() {
@@ -25,27 +25,21 @@ async function ping(linkObj) {
       const response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
       
       if (response.ok) {
-        // SUCCESS: Link passed on this attempt (1, 2, or 3). 
-        // We return null and are completely SILENT on success, as requested.
+        // SUCCESS: Completely silent on success, even if it took retries.
         return null; 
       }
-      
-      // FAILURE (4xx, 5xx): We will only log this if it's the final failure.
-      // console.warn(`[FAIL ATTEMPT ${attempt}] Link: ${url} - Status: ${response.status}.`);
-
     } catch (error) {
-      // NETWORK ERROR: We will only log this if it's the final failure.
-      // console.error(`[ERROR ATTEMPT ${attempt}] Link: ${url} - Network Error: ${error.message}.`);
+      // Network or DNS error.
     }
 
     // Check if this was the last allowed attempt
     if (attempt === MAX_PING_ATTEMPTS) {
-      // FINAL FAILURE: Log the URL and the reason it failed after all attempts
+      // FINAL FAILURE: Log the URL before exiting the loop.
       console.error(`[FINAL FAIL] Link: ${url} failed after ${MAX_PING_ATTEMPTS} attempts.`);
-      break; // Exit the loop and return failure
+      break; 
     }
     
-    // Wait a brief moment before the next retry
+    // Wait a brief moment before the next retry (needed for the retry to be effective)
     await sleep(RETRY_DELAY_MS);
   }
 
@@ -53,15 +47,27 @@ async function ping(linkObj) {
   return linkObj; 
 }
 
-// Function for a general concurrent pass
-async function concurrentPingPass(links, batchSize) {
+// Function for the concurrent pass (handles both dynamic random and fixed batch size)
+async function concurrentPingPass(links, isRandomBatching) {
   const failedLinks = [];
   
-  console.log(`Pinging ${links.length} links using CONCURRENT mode (Batch Size ${batchSize})...`);
+  const mode = isRandomBatching 
+    ? `DYNAMIC CONCURRENT (Batch Size ${MIN_RANDOM_BATCH}-${MAX_RANDOM_BATCH} per batch)`
+    : `FIXED SEQUENTIAL (1 link per batch)`;
 
-  for (let i = 0; i < links.length; i += batchSize) {
-      const chunk = links.slice(i, i + batchSize);
-      // ping is responsible for internal retries and silence on success
+  console.log(`Pinging ${links.length} links using ${mode}...`);
+
+  let i = 0;
+  while (i < links.length) {
+      // Logic for dynamic vs. fixed batch size
+      const currentBatchSize = isRandomBatching ? getRandomBatchSize() : 1;
+
+      // Ensure we don't slice past the end of the array
+      const endIndex = Math.min(i + currentBatchSize, links.length);
+      
+      const chunk = links.slice(i, endIndex);
+      
+      // Process the batch concurrently
       const promises = chunk.map(linkObj => ping(linkObj)); 
       const results = await Promise.all(promises);
       
@@ -70,6 +76,9 @@ async function concurrentPingPass(links, batchSize) {
           failedLinks.push(failedLink);
         }
       });
+
+      // Update the starting index for the next batch
+      i = endIndex;
   }
   return failedLinks;
 }
@@ -95,15 +104,15 @@ async function main() {
   let totalSucceeded = 0;
   let passCount = 0;
   
-  // Define the pass configurations: [batchSize, description]
+  // Pass configurations: [isRandomBatching (bool), description]
   const passConfigs = [
-    [getRandomBatchSize(), 'RANDOM BATCH (Pass 1)'],
-    [getRandomBatchSize(), 'RANDOM BATCH (Pass 2)'],
-    [1, 'SEQUENTIAL BATCH (Pass 3)'], // Batch size of 1 forces sequential execution
+    [true, 'RANDOM BATCH (Pass 1)'],
+    [true, 'RANDOM BATCH (Pass 2)'],
+    [false, 'SEQUENTIAL BATCH (Pass 3)'], 
   ];
   
   // --- Start Retry Loop ---
-  for (const [batchSize, description] of passConfigs) {
+  for (const [isRandomBatching, description] of passConfigs) {
     passCount++;
     if (currentLinks.length === 0) {
         break; // Early exit if previous pass succeeded
@@ -113,15 +122,14 @@ async function main() {
     console.log(`STARTING PASS #${passCount}: ${description} with ${currentLinks.length} links...`);
     console.log('===================================================================');
 
-    // Run the concurrent pass with the configured batch size
-    let failedLinks = await concurrentPingPass(currentLinks, batchSize);
+    // Run the concurrent pass with the configured batching logic
+    let failedLinks = await concurrentPingPass(currentLinks, isRandomBatching);
 
     let succeededInPass = currentLinks.length - failedLinks.length;
     totalSucceeded += succeededInPass;
     
     // --- Pass Summary ---
     console.log(`\n--- Pass #${passCount} Summary ---`);
-    console.log(`Batch Size Used: ${batchSize}`);
     console.log(`✅ Succeeded in this pass: ${succeededInPass} links`);
     console.log(`❌ Still Failing: ${failedLinks.length} links`);
     console.log(`⏳ Total Succeeded So Far: ${totalSucceeded} links`);
